@@ -10,34 +10,29 @@ However, when I tried to do anything real or bring in other Spring projects, the
 
 So in this project, I tired to solve the issue by implementing message routing via [Spring Integration](https://projects.spring.io/spring-integration/).  Additionally, you can run your code locally via Spring Boot.
 
-A key to make Spring Boot play nice with Lambda is to tell it not run a full web environment:
+A key to make Spring Boot play nice with Lambda is to tell it not to run a full web environment:
 
 ```java
 public ServerlessOutput handleRequest(ServerlessInput serverlessInput, Context context) {
 
-		if(!initialized) {
+    if(!initialized) {
 
-			applicationContext = new SpringApplicationBuilder(LambdaConfig.class)
+        applicationContext = new SpringApplicationBuilder(LambdaConfig.class)
+            .web(false) //tells Spring not to setup a servlet and listen on port
+            .run(new String[]{});
 
-				.web(false) //tells Spring not to setup a servlet and listen on port
+        initialized = true;
 
-				.run(new String[]{});
-
-			initialized = true;
-
-		}
+    }
 ```
 
 After wrapping the Lambda request body in a Spring Integration Message envelope, then one option to route is to set a header. You can use whatever scheme makes sense for you.
 
 ```java
 Message<String> message = MessageBuilder.withPayload(serverlessInput.getBody())
-
-			.setHeader("route", (serverlessInput.getHttpMethod()
-
-									+ serverlessInput.getPath()).replace('/', '-'))
-
-			.build();
+    .setHeader("route", (serverlessInput.getHttpMethod()
+                            + serverlessInput.getPath
+    .build();
 
 ```
 
@@ -47,55 +42,45 @@ Four key parts of Spring Integration are needed:
 ```java
 @MessagingGateway
 
-    public interface ControllerGateway {
+public interface ControllerGateway {
 
-        @Gateway(requestChannel="requestChannel")
+    @Gateway(requestChannel="requestChannel")
+    public Message<?> route(Message<String> message);
 
-        public Message<?> route(Message<String> message);
-
-    }
+}
 ```
 2. Integration Flow to, typically, route to a deserializer
 ```java
 @Bean
 
-    public IntegrationFlow requestFlow(){
+public IntegrationFlow requestFlow(){
 
-        return IntegrationFlows.from("requestChannel")
+    return IntegrationFlows.from("requestChannel")
+                            .route(new HeaderValueRouter("route"))
+                            .get();
 
-                                .route(new HeaderValueRouter("route"))
-
-                                .get();
-
-    }
+}
 ```
 3. Integration Flow to route to a Controller or Resource
 ```java
 @Bean
 
-    public IntegrationFlow greeIntegrationFlow(){
+public IntegrationFlow greeIntegrationFlow(){
 
-        return IntegrationFlows.from("POST-greeting")
+    return IntegrationFlows.from("POST-greeting")
+                            .transform(Transformers.fromJson(GreetingMessage.class))
+                            .channel("POST-greeting-activator")
+                            .get();
 
-                                .transform(Transformers.fromJson(GreetingMessage.class))
-
-                                .channel("POST-greeting-activator")
-
-                                .get();
-
-    }
+}
 ```
 4. Service Activator triggering your logic
 ```java
 public class GreetingController {
 
     @RequestMapping(method = RequestMethod.POST, produces="application/json")
-
     @ServiceActivator(inputChannel="POST-greeting-activator")
-
     public GreetingMessage reply(@RequestBody GreetingMessage greeting) {
-
-        
 
         greeting.setMessage("Well...hello there");
 
