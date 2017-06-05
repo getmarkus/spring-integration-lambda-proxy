@@ -8,7 +8,7 @@ One such interesting project aiming to reduce that friction is the [AWS Serverle
 
 However, when I tried to do anything real or bring in other Spring projects, the constraints often got in the way and soon became counter productive. Also, it seemed like these projects were trying to enforce the wrong concern.  AWS Lambda feels much more event-driven and has a distinct message passing scheme. Rather than a request-response MVC front controller.
 
-So in this project, I tired to solve the issue by implementing message routing via [Spring Integration](https://projects.spring.io/spring-integration/).  Additionally, you can run your code locally via Spring Boot.
+So in this project, I tried to solve the issue by implementing message routing via [Spring Integration](https://projects.spring.io/spring-integration/).  Additionally, you can run your code locally via Spring Boot.
 
 A key to make Spring Boot play nice with Lambda is to tell it not to run a full web environment:
 
@@ -31,7 +31,7 @@ After wrapping the Lambda request body in a Spring Integration Message envelope,
 ```java
 Message<String> message = MessageBuilder.withPayload(serverlessInput.getBody())
     .setHeader("route", (serverlessInput.getHttpMethod()
-                            + serverlessInput.getPath
+                            + serverlessInput.getPath().replace('/', '-'))
     .build();
 
 ```
